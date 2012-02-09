@@ -16,7 +16,7 @@
 void initSPI(void)
 {
   UCB0CTL1 = UCSWRST;
-  UCB0CTL0 = UCSYNC + UCSPB + UCMSB;
+  UCB0CTL0 = UCSYNC + UCSPB + UCMSB + UCCKPH;
   UCB0CTL1 |= UCSSEL_2;
   UCB0BR0 |= 0x01;
   UCB0BR1 = 0;
@@ -100,7 +100,7 @@ unsigned int SPIRead(unsigned char * ptrBuffer, unsigned int ui_Len)
   for ( i=0;i<ui_Len;i++)
   {
       while (! (IFG2 & UCB0TXIFG));
-      UCB0TXBUF = 0xff;
+      UCB0TXBUF = 0x00;
       while (! (IFG2 & UCB0TXIFG));
       *ptrBuffer++ = UCB0RXBUF;
 //    //S0SPDR= 0xff;                  // dummy transmit byte

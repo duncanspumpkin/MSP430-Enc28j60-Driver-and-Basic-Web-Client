@@ -100,6 +100,7 @@ void initMAC(void)
   
             //Program our MAC address
   BankSel(3);              
+  
   WriteCtrReg(MAADR1,bytMacAddress[0]);   
   WriteCtrReg(MAADR2,bytMacAddress[1]);  
   WriteCtrReg(MAADR3,bytMacAddress[2]);
@@ -569,6 +570,7 @@ static void ResetMac(void)
   SPIWrite(&bytOpcode,1);     // Tx opcode and address
   SEL_MAC(FALSE);
   
+  __delay_cycles(16000);
 }
 
 

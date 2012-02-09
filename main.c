@@ -6,7 +6,7 @@
 
 unsigned char uip_len;
 unsigned char uip_buf[250];
-const unsigned char bytMacAddress[6] = {0x00,0xa0,0xc9,0x14,0xc8,0x29};
+const unsigned char bytMacAddress[6] = {0x00,0xa0,0xc9,0x14,0xc8,0x00};
 typedef struct
 {
   unsigned char DestAddrs[6];
