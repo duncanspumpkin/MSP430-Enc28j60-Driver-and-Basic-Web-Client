@@ -2,13 +2,14 @@
 #include "enc28j60.h"
 #include <string.h>
 
-//Switch the layout for the enc28j60
+// Switch to host order for the enc28j60
 #define HTONS(x) ((x<<8)|(x>>8))
 
 unsigned char uip_buf[250];
 unsigned char uip_len;
 unsigned char bytRouterMac[6];
 
+// Mac address of the enc28j60
 const unsigned char bytMacAddress[6] = {0x00,0xa0,0xc9,0x14,0xc8,0x00};
 const unsigned char bytIPAddress[4] = {192,168,0,50};
 const unsigned char routerIP[4] = {192,168,0,1};
@@ -111,6 +112,7 @@ void PrepArp()
   arpPacket.opCode = HTONS(0x0001);
   
   memcpy(&arpPacket.senderMAC[0],&bytMacAddress[0],sizeof(bytMacAddress));
+
   arpPacket.senderIP[0] = 192;
   arpPacket.senderIP[1] = 168;
   arpPacket.senderIP[2] = 0;
@@ -150,7 +152,6 @@ int main( void )
 {
   // Stop watchdog timer to prevent time out reset
   WDTCTL = WDTPW + WDTHOLD;
-  
   P1DIR = 0x01;
   P1OUT = 0x0;
   initMAC();
