@@ -149,8 +149,12 @@ unsigned int MACWrite()
 
   WriteMacBuffer(&bytControl,1);                       // write per packet control byte
   address++;
-  
-  address+=WriteMacBuffer(&uip_buf[0], uip_len);
+  address+=WriteMacBuffer(&uip_buf[0], uip_len);  
+  //Tester stuff
+  WriteCtrReg(ERDPTL,(unsigned char)((TXSTART+1) & 0x00ff));   //write this value to read buffer ptr
+  WriteCtrReg(ERDPTH,(unsigned char)(((TXSTART+1) & 0xff00)>>8));
+  ReadMacBuffer(uip_buf,uip_len);
+  //Testing 123
   /*
   if(uip_len <= UIP_LLH_LEN + UIP_TCPIP_HLEN) 
   {

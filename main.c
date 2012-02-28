@@ -1,26 +1,32 @@
-#include "io430.h"
+#include <msp430.h>
 #include "enc28j60.h"
 #include <string.h>
 
 #define SEL_MAC(x)  (x==1) ? (P2OUT&=(~BIT0)) : (P2OUT|=BIT0)  
 
-unsigned char uip_len;
+//Switch the layout for the enc28j60
+
+#define HTONS(x) ((x<<8)|(x>>8))
+
 unsigned char uip_buf[250];
+unsigned char uip_len;
 const unsigned char bytMacAddress[6] = {0x00,0xa0,0xc9,0x14,0xc8,0x00};
+
 typedef struct
 {
   unsigned char DestAddrs[6];
   unsigned char SrcAddrs[6];
-  unsigned char type[2];
+  unsigned int type;
 }EtherNetII;
 
 typedef struct
 {
-  unsigned char hardware[2];
-  unsigned char  protocol[2];
+  EtherNetII eth;
+  unsigned int hardware;
+  unsigned int protocol;
   unsigned char hardwareSize;
   unsigned char protocolSize;
-  unsigned char  opCode[2]; //Just do a <<
+  unsigned int opCode;
   unsigned char senderMAC[6];
   unsigned char senderIP[4];
   unsigned char targetMAC[6];
@@ -29,24 +35,20 @@ typedef struct
 
 void PrepArp()
 {
-  EtherNetII ethPacket;
   ARP arpPacket;
-  memcpy(&ethPacket.SrcAddrs[0],&bytMacAddress[0],sizeof(bytMacAddress));
+  memcpy(&arpPacket.eth.SrcAddrs[0],&bytMacAddress[0],sizeof(bytMacAddress));
   for( int i = 0; i < 6; ++i)
   {
-    ethPacket.DestAddrs[i] = 0xff;
+    arpPacket.eth.DestAddrs[i] = 0xff;
     arpPacket.targetMAC[i] = 0x00;
   }
-  ethPacket.type[0] = 0x08;
-  ethPacket.type[1] = 0x06;
-  arpPacket.hardware[0] = 0x00;
-  arpPacket.hardware[1] = 0x01;
-  arpPacket.protocol[0] = 0x08;
-  arpPacket.protocol[1] = 0x00;
+  arpPacket.eth.type = HTONS(0x0806);
+  arpPacket.hardware = HTONS(0x0001);
+  arpPacket.protocol = HTONS(0x0800);
   arpPacket.hardwareSize = 0x06;
   arpPacket.protocolSize = 0x04;
-  arpPacket.opCode[0] = 0x00;
-  arpPacket.opCode[1] = 0x01;
+  arpPacket.opCode = HTONS(0x0001);
+  
   memcpy(&arpPacket.senderMAC[0],&bytMacAddress[0],sizeof(bytMacAddress));
 //  for(int i = 0; i < 4; ++i)
 //  {
@@ -59,34 +61,63 @@ void PrepArp()
   arpPacket.targetIP[0] = 192;
   arpPacket.targetIP[1] = 168;
   arpPacket.targetIP[2] = 0;
-  arpPacket.targetIP[3] = 1;
-  memcpy(&uip_buf[0],&ethPacket,sizeof(EtherNetII));
-  memcpy(&uip_buf[sizeof(EtherNetII)],&arpPacket,sizeof(ARP));
+  arpPacket.targetIP[3] = 6;
+  memcpy(&uip_buf[0],&arpPacket,sizeof(ARP));
   uip_len = sizeof(EtherNetII) + sizeof(ARP);
+}
+
+void ReplyArp(ARP senderArp)
+{
+  ARP arpPacket;
+  memcpy(&arpPacket.eth.SrcAddrs[0],&bytMacAddress[0],sizeof(bytMacAddress));
+  memcpy(&arpPacket.eth.DestAddrs[0],&senderArp.eth.SrcAddrs[0],sizeof(bytMacAddress));
+  memcpy(&arpPacket.targetMAC[0],&senderArp.eth.SrcAddrs[0],sizeof(bytMacAddress));
+  memcpy(&arpPacket.senderMAC[0],&bytMacAddress[0],sizeof(bytMacAddress));
+  arpPacket.eth.type = HTONS(0x0806);
+  arpPacket.hardware = HTONS(0x0001);
+  arpPacket.protocol = HTONS(0x0800);
+  arpPacket.hardwareSize = 0x06;
+  arpPacket.protocolSize = 0x04;
+  arpPacket.opCode = HTONS(0x0002);
+
+  arpPacket.senderIP[0] = 192;
+  arpPacket.senderIP[1] = 168;
+  arpPacket.senderIP[2] = 0;
+  arpPacket.senderIP[3] = 50;
+  memcpy(&arpPacket.targetIP[0],&senderArp.senderIP[0],4);
+  memcpy(&uip_buf[0],&arpPacket,sizeof(ARP));
+  uip_len = sizeof(EtherNetII) + sizeof(ARP);  
 }
 int main( void )
 {
   // Stop watchdog timer to prevent time out reset
   WDTCTL = WDTPW + WDTHOLD;
-  DCOCTL = CALDCO_16MHZ;
-  BCSCTL1 = CALBC1_16MHZ;
+ // DCOCTL = CALDCO_16MHZ;
+  //BCSCTL1 = CALBC1_16MHZ;
   P1DIR = 0x01;
   P1OUT = 0x0;
   initMAC();
-  PrepArp();
+  __delay_cycles(16000);
   
+  PrepArp();
+  MACWrite();
   while(1) {
-    MACWrite();
+    //MACWrite();
     if( MACRead() )
     {
-      EtherNetII* eth = (EtherNetII*)&uip_buf[0];
-      if( eth->type[0] == 0x08 && eth->type[1] == 0x06 && eth->DestAddrs[0]!= 0xff)
+      EtherNetII* eth = (EtherNetII*)&uip_buf;
+      if( eth->type == HTONS(0x0806))
       {
-      P1OUT = 0x1;
-      while(1);
+        ARP* arp = (ARP*)&uip_buf[0];
+        if ( arp->eth.DestAddrs[0] == 0xff )
+        {
+          ReplyArp(*arp);
+          MACWrite();
+        }
+        P1OUT = 0x1;
       }
     }
-    PrepArp();
+    //PrepArp();
 //    
 //    ARP* arp = (ARP*)&uip_buf[sizeof(EtherNetII)];
 //    
