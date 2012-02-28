@@ -21,9 +21,9 @@ Parts complete:
 1. Checked by simple reads and writes to enc28j60. Examples to be added.
 2. Checked by sending ARP and recieving reply. Example to be added.
 3. Same as 2.
+4. Checked by sending and recieving Ping. Proper Example to be added.
 
 Not Complete:
 
-4. Checked by sending and recieving Ping. Current Focus.
-5. Checked by handshake with a server.
+5. Checked by handshake with a server. Current Focus.
 6. Checked by downloading basic web page.
