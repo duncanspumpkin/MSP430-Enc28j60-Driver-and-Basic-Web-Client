@@ -6,6 +6,7 @@
 /** \file enc28j60.c
  *  \brief Driver code for enc28j60.
  *  \author Iain Derrington (www.kandi-electronics.com)
+ *          Modified by Duncan Frost
  *  \date  0.1 20/06/07 First Draft \n
  *         0.2 11/07/07 Removed CS check macros. Fixed bug in writePhy
  *         0.3 12.07/07 Altered for uIP 1.0 
@@ -33,7 +34,6 @@ static void ResetMac(void);
 static unsigned char SetBitField(unsigned char, unsigned char);
 static unsigned char ClrBitField(unsigned char, unsigned char);
 static void BankSel(unsigned char);
-//static void spitest(void);
 
 //define usefull macros
 #define CS BIT0
@@ -43,8 +43,6 @@ static void BankSel(unsigned char);
 /** MACRO for rev B5 fix.*/
 #define ERRATAFIX   SetBitField(ECON1, ECON1_TXRST);ClrBitField(ECON1, ECON1_TXRST);ClrBitField(EIR, EIR_TXERIF | EIR_TXIF)
 
-//#define TRUE 1
-//#define FALSE 0
 
 /***********************************************************************/
 /** \brief Initialise the MAC.
@@ -451,7 +449,7 @@ static unsigned int ReadMacBuffer(unsigned char * bytBuffer,unsigned char byt_le
 /***********************************************************************/
 /** \brief Write bytes to MAC data buffer.
  *
- * Description: Reads a number of bytes from the ENC28J60 internal memory. Assumes auto increment
+ * Description: Writes a number of bytes to the ENC28J60 internal memory. Assumes auto increment
  *              is on.
  *             
  * \author Iain Derrington
@@ -509,7 +507,7 @@ static unsigned char SetBitField(unsigned char bytAddress, unsigned char bytData
 /***********************************************************************/
 /** \brief Clear bit field on ctr registers.
  *
- * Description: Sets the bit/s at the address register. Assumes correct bank has been selected.
+ * Description: Clears the bit/s at the address register. Assumes correct bank has been selected.
  *             
  * \author Iain Derrington
  * \param bytAddress Address of registed where bit is to be set
