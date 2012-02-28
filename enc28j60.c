@@ -150,11 +150,7 @@ unsigned int MACWrite()
   WriteMacBuffer(&bytControl,1);                       // write per packet control byte
   address++;
   address+=WriteMacBuffer(&uip_buf[0], uip_len);  
-  //Tester stuff
-  WriteCtrReg(ERDPTL,(unsigned char)((TXSTART+1) & 0x00ff));   //write this value to read buffer ptr
-  WriteCtrReg(ERDPTH,(unsigned char)(((TXSTART+1) & 0xff00)>>8));
-  ReadMacBuffer(uip_buf,uip_len);
-  //Testing 123
+
   /*
   if(uip_len <= UIP_LLH_LEN + UIP_TCPIP_HLEN) 
   {
@@ -167,7 +163,7 @@ unsigned int MACWrite()
   }*/
 
 
-
+  address--;
   WriteCtrReg(ETXNDL, (unsigned char)( address & 0x00ff));       // Tell MAC when the end of the packet is
   WriteCtrReg(ETXNDH, (unsigned char)((address & 0xff00)>>8));
   
@@ -255,7 +251,7 @@ unsigned int MACRead()
   ReadMacBuffer((unsigned char*)&ptrRxStatus.v[0],6);             // read next packet ptr + 4 status bytes
   nextpckptr = ptrRxStatus.bits.NextPacket;
   
-  uip_len=ptrRxStatus.bits.ByteCount;
+  uip_len=ptrRxStatus.bits.ByteCount - 4; //We take away 4 as that is the CRC
   ReadMacBuffer(uip_buf,uip_len);   // read packet into buffer
   
                                         // ptrBuffer should now contain a MAC packet
