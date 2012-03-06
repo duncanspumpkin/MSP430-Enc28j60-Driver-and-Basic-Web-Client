@@ -2,6 +2,7 @@
 #include "enc28j60.h"
 #include <string.h>
 
+
 // Switch to host order for the enc28j60
 #define HTONS(x) ((x<<8)|(x>>8))
 
@@ -88,6 +89,29 @@ typedef struct
 typedef struct
 {
   IPhdr ip;
+  unsigned int sourcePort;
+  unsigned int destPort;
+  unsigned long seqNo;
+  unsigned long ackNo;
+  unsigned char reserverd : 4;
+  unsigned char hdrLen : 4;
+  unsigned char NS:1;
+  unsigned char CWR:1;
+  unsigned char ECE:1;
+  unsigned char URG:1;
+  unsigned char ACK:1;
+  unsigned char PSH:1;
+  unsigned char RST:1;
+  unsigned char SYN:1;
+  unsigned char FIN:1;
+  unsigned int wndSize;
+  unsigned int chksum;
+  unsigned int urgentPointer;
+}TCPhdr;
+
+typedef struct
+{
+  IPhdr ip;
   unsigned char type;
   unsigned char code;
   unsigned int chksum;
@@ -148,15 +172,52 @@ void ReplyArp(ARP senderArp)
   uip_len = sizeof(ARP);  
 }
 
+void ackTcp(TCPhdr* tcp)
+{
+  
+  tcp->chksum = 0x0;
+  tcp->ip.chksum = 0x0;
+  // First sort out the destination mac and source
+  memcpy(&tcp->ip.eth.DestAddrs[0],&tcp->ip.eth.SrcAddrs[0],6);
+  memcpy(&tcp->ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
+  // Next flip the ips
+  memcpy(&tcp->ip.dest[0],&tcp->ip.source[0],4);
+  memcpy(&tcp->ip.source[0],&bytIPAddress[0],4);
+  // Next flip ports
+  tcp->destPort = tcp->sourcePort;
+  tcp->sourcePort = HTONS(0x85ca);
+  // Swap ack and seq
+  long ack = tcp->ackNo;
+  tcp->ackNo = tcp->seqNo;
+  tcp->seqNo = ack;
+  
+  if( tcp->SYN )
+  {
+    tcp->ackNo++;
+    //increment ACKno by 1 issues due to being 32bit
+  }
+  else
+  {
+    //tcp->ackNo = 
+    //increment by len of data
+  }
+}
+
 int main( void )
 {
   // Stop watchdog timer to prevent time out reset
   WDTCTL = WDTPW + WDTHOLD;
   P1DIR = 0x01;
   P1OUT = 0x0;
+  
   initMAC();
-  __delay_cycles(16000);
-
+  // Need a long delay to ensure everything is setup.
+  // Infact could wait for others to send first packet.
+  while( !MACRead() );
+  
+  // Declare our presense to the network
+  PrepArp();
+  MACWrite();
   while(1) {
     if( MACRead() )
     {
@@ -164,7 +225,7 @@ int main( void )
       if( eth->type == HTONS(0x0806))
       {
         ARP* arp = (ARP*)&uip_buf[0];
-        if ( arp->targetIP[3] == 50)
+        if ( arp->targetIP[3] == 50 && arp->opCode == HTONS(0x0001))
         {
           memcpy(&bytRouterMac[0], &arp->senderMAC[0], 6);
           ReplyArp(*arp);
@@ -206,18 +267,25 @@ int main( void )
         if( ip->protocol == 0x01 )
         {
           ICMPhdr* ping = (ICMPhdr*)&uip_buf[0];
-          ping->type = 0x0;
-          ping->chksum = 0x0;
-          ping->ip.chksum = 0x0;
-          memcpy(&ping->ip.eth.DestAddrs[0],&ping->ip.eth.SrcAddrs[0],6);
-          memcpy(&ping->ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
-          memcpy(&ping->ip.dest[0],&ping->ip.source[0],4);
-          memcpy(&ping->ip.source[0],&bytIPAddress[0],4);
-          
-          ping->chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));;
-          ping->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
-          
-          MACWrite();
+          if ( ping->type == 0x8 )
+          {
+            ping->type = 0x0;
+            ping->chksum = 0x0;
+            ping->ip.chksum = 0x0;
+            memcpy(&ping->ip.eth.DestAddrs[0],&ping->ip.eth.SrcAddrs[0],6);
+            memcpy(&ping->ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
+            memcpy(&ping->ip.dest[0],&ping->ip.source[0],4);
+            memcpy(&ping->ip.source[0],&bytIPAddress[0],4);
+            
+            ping->chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));;
+            ping->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
+            
+            MACWrite();
+          }
+        }
+        else if( ip -> protocol == 0x6 ) //TCP
+        {
+          ackTcp((TCPhdr*)&uip_buf[0]);
         }
       }
     }
