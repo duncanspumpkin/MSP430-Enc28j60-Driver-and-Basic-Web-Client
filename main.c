@@ -15,6 +15,31 @@ const unsigned char bytMacAddress[6] = {0x00,0xa0,0xc9,0x14,0xc8,0x00};
 const unsigned char bytIPAddress[4] = {192,168,0,50};
 const unsigned char routerIP[4] = {192,168,0,1};
 
+void
+add32(unsigned char *op32, unsigned int op16)
+{
+  op32[3] += (op16 & 0xff);
+  op32[2] += (op16 >> 8);
+  
+  if(op32[2] < (op16 >> 8)) {
+    ++op32[1];
+    if(op32[1] == 0) {
+      ++op32[0];
+    }
+  }
+  
+  
+  if(op32[3] < (op16 & 0xff)) {
+    ++op32[2];
+    if(op32[2] == 0) {
+      ++op32[1];
+      if(op32[1] == 0) {
+	++op32[0];
+      }
+    }
+  }
+}
+
 static unsigned int
 chksum(unsigned int sum, const unsigned char *data, unsigned int len)
 {
@@ -91,8 +116,8 @@ typedef struct
   IPhdr ip;
   unsigned int sourcePort;
   unsigned int destPort;
-  unsigned long seqNo;
-  unsigned long ackNo;
+  unsigned char seqNo[4];
+  unsigned char ackNo[4];
   unsigned char reserverd : 4;
   unsigned char hdrLen : 4;
   unsigned char NS:1;
@@ -174,7 +199,7 @@ void ReplyArp(ARP senderArp)
 
 void ackTcp(TCPhdr* tcp)
 {
-  
+  //Zero the checksums
   tcp->chksum = 0x0;
   tcp->ip.chksum = 0x0;
   // First sort out the destination mac and source
@@ -187,20 +212,23 @@ void ackTcp(TCPhdr* tcp)
   tcp->destPort = tcp->sourcePort;
   tcp->sourcePort = HTONS(0x85ca);
   // Swap ack and seq
-  long ack = tcp->ackNo;
-  tcp->ackNo = tcp->seqNo;
-  tcp->seqNo = ack;
+  char ack[4];
+  memcpy(&ack,&tcp->ackNo[0],4);
+  memcpy(&tcp->ackNo[0],&tcp->seqNo[0],4);
+  memcpy(&tcp->seqNo[0],&ack[0],4);
   
   if( tcp->SYN )
   {
-    tcp->ackNo++;
-    //increment ACKno by 1 issues due to being 32bit
+    add32(&tcp->ackNo[0],1);
   }
   else
   {
-    //tcp->ackNo = 
-    //increment by len of data
+    add32(&tcp->ackNo[0],uip_len-sizeof(TCPhdr));
   }
+  uip_len = sizeof(TCPhdr);
+  tcp->chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],sizeof(TCPhdr)-sizeof(IPhdr))));
+  tcp->ip.len = HTONS(sizeof(TCPhdr)-sizeof(EtherNetII));
+  tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
 }
 
 int main( void )
@@ -209,7 +237,6 @@ int main( void )
   WDTCTL = WDTPW + WDTHOLD;
   P1DIR = 0x01;
   P1OUT = 0x0;
-  
   initMAC();
   // Need a long delay to ensure everything is setup.
   // Infact could wait for others to send first packet.
