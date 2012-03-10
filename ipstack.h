@@ -80,6 +80,16 @@ typedef struct
 typedef struct
 {
   IPhdr ip;
+  unsigned int sourcePort;
+  unsigned int destPort;
+  unsigned int len;
+  unsigned int chksum;
+}UDPhdr;
+
+
+typedef struct
+{
+  IPhdr ip;
   unsigned char type;
   unsigned char code;
   unsigned int chksum;
@@ -89,5 +99,27 @@ typedef struct
 
 #define ICMPREPLY 0x0
 #define ICMPREQUEST 0x8
+
+typedef struct
+{
+  UDPhdr udp;
+  unsigned int id;
+  unsigned char QR : 1;
+  unsigned char opCode :4;
+  unsigned char AA:1;
+  unsigned char TC:1;
+  unsigned char RD:1;
+  unsigned char RA:1;
+  unsigned char Zero:3;
+  unsigned char Rcode:4;
+  unsigned int qdCount;
+  unsigned int anCount;
+  unsigned int nsCount;
+  unsigned int arCount;
+}DNShdr;
+
+#define DNSQUERY 0
+#define DNSREPLY 1
+
 
 #endif

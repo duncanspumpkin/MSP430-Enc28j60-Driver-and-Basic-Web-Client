@@ -142,65 +142,6 @@ void ackTcp(TCPhdr* tcp)
   tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
 }
 
-
-
-//  while(1) {
-//    if( MACRead() )
-//    {
-//      EtherNetII* eth = (EtherNetII*)&uip_buf;
-//      if( eth->type == HTONS(0x0806))
-//      {
-//        ARP* arp = (ARP*)&uip_buf[0];
-//        if ( arp->targetIP[3] == 50 && arp->opCode == HTONS(0x0001))
-//        {
-//          memcpy(&bytRouterMac[0], &arp->senderMAC[0], 6);
-//          ReplyArp(*arp);
-//          MACWrite();
-//          
-//          ICMPhdr* ping = (ICMPhdr*)&uip_buf[0];
-//          uip_len = sizeof(ICMPhdr);
-//          memcpy(&ping->ip.eth.DestAddrs[0],&bytRouterMac[0],6);
-//          memcpy(&ping->ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
-//          ping->ip.eth.type = HTONS(0x0800);
-//          ping->ip.version = 0x4;
-//          ping->ip.hdrlen = 0x5;
-//          ping->ip.diffsf = 0;
-//          ping->ip.ident = 2;
-//          ping->ip.flags = 0x2;
-//          ping->ip.fragmentOffset1 = 0x0;
-//          ping->ip.fragmentOffset2 = 0x0;
-//          ping->ip.ttl = 128;
-//          ping->ip.protocol = 0x01;
-//          ping->ip.chksum = 0x0;
-//          memcpy(&ping->ip.source[0],&bytIPAddress[0],4);
-//          memcpy(&ping->ip.dest[0],&routerIP[0],4);
-//          ping->type = 0x8;
-//          ping->code = 0x0;
-//          ping->chksum = 0x0;
-//          ping->iden = HTONS(0x1);
-//          ping->seqNum = HTONS(0x2);
-//
-//          ping->chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],60-sizeof(IPhdr))));
-//          ping->ip.len = HTONS(sizeof(ICMPhdr)-sizeof(EtherNetII));
-//          ping->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
-//          
-//          MACWrite();
-//        }
-//      }
-//      else if( eth->type == HTONS(0x0800) )
-//      {
-//        IPhdr* ip = (IPhdr*)&uip_buf[0];
-//        if( ip->protocol == 0x01 )
-//        {
-//        }
-//        else if( ip -> protocol == 0x6 ) //TCP
-//        {
-//          ackTcp((TCPhdr*)&uip_buf[0]);
-//        }
-//      }
-//    }
-//   
-//  }
 void PingReply()
 {
   ICMPhdr* ping = (ICMPhdr*)&uip_buf[0];
@@ -222,7 +163,7 @@ void PingReply()
 
 int GetPacket( int protocol )
 {
-  while(1)
+  while(1)//Should make this return 0 after so many failed packets
   {
     if ( MACRead() )
     {
@@ -286,6 +227,13 @@ int IPstackInit( unsigned char const* MacAddress)
 
 int IPstackHTMLPost( char* url, char* data)
 {
+  //First we need to do some DNS looking up
+  
+  //Now that we have the IP we can connect to the server
+  //Syn server
+  GetPacket(TCPPROTOCOL);
+  //ack syn/ack
+  //Send the actual data
   return 0;
 }
 
