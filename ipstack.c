@@ -225,10 +225,63 @@ int IPstackInit( unsigned char const* MacAddress)
   return 1;
 }
 
+unsigned char* DNSLookup( char* url )
+{
+  DNShdr* dns = (DNShdr*)&uip_buf[0];
+  dns->id = 0x4;
+  dns->udp.sourcePort = HTONS(1);//Place a number in here
+  dns->udp.destPort = HTONS(1);
+  dns->udp.len = 0;
+  dns->udp.chksum = 0;
+  dns->udp.ip.hdrlen = 5;
+  dns->udp.ip.version = 4;
+  dns->udp.ip.diffsf = 0;
+  dns->udp.ip.ident = 0;
+  dns->udp.ip.fragmentOffset1 = 0;
+  dns->udp.ip.fragmentOffset2 = 0;
+  dns->udp.ip.flags = 0x2;
+  dns->udp.ip.ttl = 128;
+  dns->udp.ip.protocol = UDPPROTOCOL;
+  dns->udp.ip.chksum = 0;
+  memcpy(&dns->udp.ip.source[0], &bytIPAddress[0], 4);
+  memcpy(&dns->udp.ip.dest[0], &routerIP[0], 4);
+  dns->udp.ip.eth.type = IPPACKET;
+  memcpy(&dns->udp.ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
+  memcpy(&dns->udp.ip.eth.DestAddrs[0],&bytRouterMac[0],6);
+  //Add in question header
+  char* dnsq = (char*)&uip_buf[sizeof(DNShdr)];//This is not correct
+  int noChars = 1;
+  for( char* c = &url[0]; *c != '\0' || *c !='\\'; ++c,++dnsq, ++noChars)
+  {
+    *dnsq = *c;
+    if ( *c == '.' )
+    {
+      *dnsq = noChars;
+      noChars = 1;
+    }
+  }
+  *dnsq = 0;
+  //Finish off question header
+  //Calculate all lengths
+  //Calculate all checksums
+  MACWrite();
+  
+  while(1)
+  {
+    GetPacket(UDPPROTOCOL);
+    dns = (DNShdr*)&uip_buf[0];
+    if ( dns->id == 0x4 )
+    {
+      //Grab IP from message
+      
+      return (unsigned char*)&uip_buf[0];//Should not be zero but for now
+    }
+  }
+}
 int IPstackHTMLPost( char* url, char* data)
 {
   //First we need to do some DNS looking up
-  
+  unsigned char* serverIP = DNSLookup(url);
   //Now that we have the IP we can connect to the server
   //Syn server
   GetPacket(TCPPROTOCOL);
