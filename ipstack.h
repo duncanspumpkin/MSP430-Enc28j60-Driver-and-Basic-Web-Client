@@ -118,6 +118,7 @@ typedef struct
   unsigned int arCount;
 }DNShdr;
 
+#define DNSUDPPORT 53
 #define DNSQUERY 0
 #define DNSREPLY 1
 

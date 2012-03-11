@@ -228,9 +228,9 @@ int IPstackInit( unsigned char const* MacAddress)
 unsigned char* DNSLookup( char* url )
 {
   DNShdr* dns = (DNShdr*)&uip_buf[0];
-  dns->id = 0x4;
-  dns->udp.sourcePort = HTONS(1);//Place a number in here
-  dns->udp.destPort = HTONS(1);
+  dns->id = 0x4; //Chosen at random roll of dice
+  dns->udp.sourcePort = HTONS(6543);//Place a number in here
+  dns->udp.destPort = HTONS(DNSUDPPORT);
   dns->udp.len = 0;
   dns->udp.chksum = 0;
   dns->udp.ip.hdrlen = 5;
@@ -248,6 +248,8 @@ unsigned char* DNSLookup( char* url )
   dns->udp.ip.eth.type = IPPACKET;
   memcpy(&dns->udp.ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
   memcpy(&dns->udp.ip.eth.DestAddrs[0],&bytRouterMac[0],6);
+  //Add in number of qs
+  //Add in rest of dnshdr data
   //Add in question header
   char* dnsq = (char*)&uip_buf[sizeof(DNShdr)];//This is not correct
   int noChars = 1;
@@ -270,7 +272,7 @@ unsigned char* DNSLookup( char* url )
   {
     GetPacket(UDPPROTOCOL);
     dns = (DNShdr*)&uip_buf[0];
-    if ( dns->id == 0x4 )
+    if ( dns->id == 0x4 ) //See above for reason
     {
       //Grab IP from message
       
