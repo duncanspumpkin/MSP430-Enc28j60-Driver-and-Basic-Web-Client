@@ -296,5 +296,5 @@ int IPstackHTMLPost( char* url, char* data)
 int IPstackIdle()
 {
   GetPacket(0);
-  return 0;
+  return 1;
 }
