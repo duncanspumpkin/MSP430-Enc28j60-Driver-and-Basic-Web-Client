@@ -66,6 +66,7 @@ chksum(unsigned int sum, const unsigned char *data, unsigned int len)
   return sum;
 }
 
+//Change prep ARP so that it takes a ip address argument
 void PrepArp()
 {
   ARP arpPacket;
