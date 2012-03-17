@@ -5,7 +5,7 @@
 #define HTONS(x) ((x<<8)|(x>>8))
 unsigned char uip_buf[250];
 unsigned char uip_len;
-unsigned char bytRouterMac[6];
+unsigned char bytRouterMac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
 unsigned char serverIP[4];
 
 unsigned char bytIPAddress[4] = {192,168,0,50};
@@ -208,7 +208,7 @@ int IPstackInit( unsigned char const* MacAddress)
   // Announce we are here
   SendArp(&bytIPAddress[0]);
   // Just waste a bit of time confirming no one has our IP
-  for(unsigned int i = 0; i < 0xffff; i++)
+  for(unsigned int i = 0; i < 0x5fff; i++)
   {
     if(MACRead())
     {
@@ -224,7 +224,7 @@ int IPstackInit( unsigned char const* MacAddress)
       }
     }
     // Every now and then send out another ARP
-    if( i % 0xfff )
+    if( !(i % 0x1000) )
     {
       SendArp(&bytIPAddress[0]);
     }
@@ -232,7 +232,7 @@ int IPstackInit( unsigned char const* MacAddress)
   // Well no one replied so its safe to assume IP address is OK
   // Now we need to get the routers MAC address
   SendArp(&routerIP[0]);
-  for(unsigned int i = 0; i < 0xffff; i++)
+  for(unsigned int i = 0; i < 0x5fff; i++)
   {
     if(MACRead())
     {
@@ -249,7 +249,7 @@ int IPstackInit( unsigned char const* MacAddress)
       }
     }
     // Every now and then send out another ARP
-    if( i % 0xfff )
+    if( !(i % 0x1000) )
     {
       SendArp(&routerIP[0]);
     }
@@ -277,7 +277,7 @@ void DNSLookup( char* url )
   dns->udp.ip.chksum = 0;
   memcpy(&dns->udp.ip.source[0], &bytIPAddress[0], 4);
   memcpy(&dns->udp.ip.dest[0], &routerIP[0], 4);
-  dns->udp.ip.eth.type = IPPACKET;
+  dns->udp.ip.eth.type = HTONS(IPPACKET);
   memcpy(&dns->udp.ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
   memcpy(&dns->udp.ip.eth.DestAddrs[0],&bytRouterMac[0],6);
   
