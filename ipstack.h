@@ -104,14 +104,15 @@ typedef struct
 {
   UDPhdr udp;
   unsigned int id;
-  unsigned char QR : 1;
-  unsigned char opCode :4;
-  unsigned char AA:1;
-  unsigned char TC:1;
-  unsigned char RD:1;
-  unsigned char RA:1;
-  unsigned char Zero:3;
-  unsigned char Rcode:4;
+  unsigned int flags;
+//  unsigned char QR : 1;
+//  unsigned char opCode :4;
+//  unsigned char AA:1;
+//  unsigned char TC:1;
+//  unsigned char RD:1;
+//  unsigned char RA:1;
+//  unsigned char Zero:3;
+//  unsigned char Rcode:4;
   unsigned int qdCount;
   unsigned int anCount;
   unsigned int nsCount;

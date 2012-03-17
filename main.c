@@ -11,7 +11,6 @@ int main( void )
   WDTCTL = WDTPW + WDTHOLD;
   P1DIR = 0x01;
   P1OUT = 0x0;
-  
   IPstackInit(&bytMacAddress[0]);
   IPstackHTMLPost(url,data);
   while(1) IPstackIdle();

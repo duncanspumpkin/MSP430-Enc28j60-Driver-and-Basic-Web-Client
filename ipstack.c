@@ -6,9 +6,10 @@
 unsigned char uip_buf[250];
 unsigned char uip_len;
 unsigned char bytRouterMac[6];
+unsigned char serverIP[4];
 
-const unsigned char bytIPAddress[4] = {192,168,0,50};
-const unsigned char routerIP[4] = {192,168,0,1};
+unsigned char bytIPAddress[4] = {192,168,0,50};
+unsigned char routerIP[4] = {192,168,0,1};
 
 void
 add32(unsigned char *op32, unsigned int op16)
@@ -67,15 +68,13 @@ chksum(unsigned int sum, const unsigned char *data, unsigned int len)
 }
 
 //Change prep ARP so that it takes a ip address argument
-void PrepArp()
+void SendArp(unsigned char* targetIP)
 {
   ARP arpPacket;
   memcpy(&arpPacket.eth.SrcAddrs[0],&bytMacAddress[0],sizeof(bytMacAddress));
-  for( int i = 0; i < 6; ++i)
-  {
-    arpPacket.eth.DestAddrs[i] = 0xff;
-    arpPacket.targetMAC[i] = 0x00;
-  }
+  memset(&arpPacket.eth.DestAddrs[0],0xff,sizeof(bytMacAddress));
+  memset(&arpPacket.targetMAC[0],0,sizeof(bytMacAddress));
+
   arpPacket.eth.type = HTONS(ARPPACKET);
   arpPacket.hardware = HTONS(0x0001);
   arpPacket.protocol = HTONS(0x0800);
@@ -84,11 +83,19 @@ void PrepArp()
   arpPacket.opCode = HTONS(ARPREQUEST);
   
   memcpy(&arpPacket.senderMAC[0],&bytMacAddress[0],sizeof(bytMacAddress));
-
-  memcpy(&arpPacket.senderIP[0],&bytIPAddress[0],sizeof(bytIPAddress));
-  memcpy(&arpPacket.targetIP[0],&routerIP[0],sizeof(routerIP));
+  if ( !memcmp( &targetIP[0], &bytIPAddress[0], sizeof(bytIPAddress) ) )
+  { //If we are checking this IP then we want senderIP = 0
+    memset(&arpPacket.senderIP[0],0,sizeof(arpPacket.senderIP));
+  }
+  else
+  {
+    memcpy(&arpPacket.senderIP[0],&bytIPAddress[0],sizeof(bytIPAddress));
+  }
+  memcpy(&arpPacket.targetIP[0],&targetIP[0],sizeof(routerIP));
   memcpy(&uip_buf[0],&arpPacket,sizeof(ARP));
   uip_len = sizeof(ARP);
+  
+  MACWrite();
 }
 
 void ReplyArp()
@@ -171,8 +178,10 @@ int GetPacket( int protocol )
       EtherNetII* eth = (EtherNetII*)&uip_buf[0];
       if ( eth->type == HTONS(ARPPACKET) )
       {
-        //We have an arp and we should reply
-        ReplyArp();
+        ARP* arpPacket = (ARP*)&uip_buf[0];
+        if ( arpPacket->opCode == HTONS(ARPREQUEST))
+          //We have an arp and we should reply
+          ReplyArp();
       }
       else if( eth->type == HTONS(IPPACKET) )
       {
@@ -197,8 +206,7 @@ int IPstackInit( unsigned char const* MacAddress)
 {
   initMAC();
   // Announce we are here
-  PrepArp();
-  MACWrite();
+  SendArp(&bytIPAddress[0]);
   // Just waste a bit of time confirming no one has our IP
   for(unsigned int i = 0; i < 0xffff; i++)
   {
@@ -218,18 +226,41 @@ int IPstackInit( unsigned char const* MacAddress)
     // Every now and then send out another ARP
     if( i % 0xfff )
     {
-      PrepArp();
-      MACWrite();
+      SendArp(&bytIPAddress[0]);
     }
   }
   // Well no one replied so its safe to assume IP address is OK
-  return 1;
+  // Now we need to get the routers MAC address
+  SendArp(&routerIP[0]);
+  for(unsigned int i = 0; i < 0xffff; i++)
+  {
+    if(MACRead())
+    {
+      EtherNetII* eth = (EtherNetII*)&uip_buf;
+      if( eth->type == HTONS(ARPPACKET) )
+      {
+        ARP* arp = (ARP*)&uip_buf;
+        if( arp->opCode == HTONS(ARPREPLY) && !memcmp(&arp->senderIP[0],&routerIP[0],4))
+        {
+          // Should be the routers reply so copy the mac address
+          memcpy(&bytRouterMac[0],&arp->senderMAC[0],6);
+          return 1;
+        }
+      }
+    }
+    // Every now and then send out another ARP
+    if( i % 0xfff )
+    {
+      SendArp(&routerIP[0]);
+    }
+  }
+  return 0;
 }
 
-unsigned char* DNSLookup( char* url )
+void DNSLookup( char* url )
 {
   DNShdr* dns = (DNShdr*)&uip_buf[0];
-  dns->id = 0x4; //Chosen at random roll of dice
+  
   dns->udp.sourcePort = HTONS(6543);//Place a number in here
   dns->udp.destPort = HTONS(DNSUDPPORT);
   dns->udp.len = 0;
@@ -249,22 +280,40 @@ unsigned char* DNSLookup( char* url )
   dns->udp.ip.eth.type = IPPACKET;
   memcpy(&dns->udp.ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
   memcpy(&dns->udp.ip.eth.DestAddrs[0],&bytRouterMac[0],6);
-  //Add in number of qs
-  //Add in rest of dnshdr data
+  
+  dns->id = 0x4; //Chosen at random roll of dice
+  dns->flags = HTONS(0x0100);
+  dns->qdCount = HTONS(1);
+  dns->anCount = 0;
+  dns->nsCount = 0;
+  dns->arCount = 0;
   //Add in question header
-  char* dnsq = (char*)&uip_buf[sizeof(DNShdr)];//This is not correct
-  int noChars = 1;
-  for( char* c = &url[0]; *c != '\0' || *c !='\\'; ++c,++dnsq, ++noChars)
+  char* dnsq = (char*)&uip_buf[sizeof(DNShdr)+1];//Note the +1
+  int noChars = 0;
+  for( char* c = &url[0]; *c != '\0' && *c !='\\'; ++c, ++dnsq)
   {
     *dnsq = *c;
     if ( *c == '.' )
     {
-      *dnsq = noChars;
-      noChars = 1;
+      *(dnsq-(noChars+1)) = noChars;
+      noChars = 0;
     }
+    else ++noChars;
   }
-  *dnsq = 0;
-  //Finish off question header
+  *(dnsq-(noChars+1)) = noChars;
+  *dnsq++ = 0;
+  //Next finish off the question with the host type and class
+  *dnsq++ = 0;
+  *dnsq++ = 1;
+  *dnsq++ = 0;
+  *dnsq++ = 1;
+  char lenOfQuery = (unsigned char*)dnsq-&uip_buf[sizeof(DNShdr)];
+  uip_len = (unsigned char*)dnsq-&uip_buf[0];
+  
+  dns->udp.len = HTONS(uip_len-sizeof(IPhdr));
+  dns->udp.ip.len = HTONS(uip_len-sizeof(EtherNetII));
+  dns->udp.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
+  dns->udp.ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
   //Calculate all lengths
   //Calculate all checksums
   MACWrite();
@@ -273,18 +322,20 @@ unsigned char* DNSLookup( char* url )
   {
     GetPacket(UDPPROTOCOL);
     dns = (DNShdr*)&uip_buf[0];
-    if ( dns->id == 0x4 ) //See above for reason
+    if ( dns->id == 0x4) //See above for reason
     {
-      //Grab IP from message
-      
-      return (unsigned char*)&uip_buf[0];//Should not be zero but for now
+      //IP address is after original query so we should go to the end plus lenOfQuery
+      //There are also 12 bytes of other data we do not need to know
+      //Grab IP from message and copy into serverIP
+      memcpy(&serverIP[0],&uip_buf[sizeof(DNShdr)+lenOfQuery+12],4);
+      return;
     }
   }
 }
 int IPstackHTMLPost( char* url, char* data)
 {
   //First we need to do some DNS looking up
-  unsigned char* serverIP = DNSLookup(url);
+  DNSLookup(url); //Fills in serverIP
   //Now that we have the IP we can connect to the server
   //Syn server
   GetPacket(TCPPROTOCOL);
