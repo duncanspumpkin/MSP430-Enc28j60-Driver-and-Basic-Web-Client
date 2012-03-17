@@ -312,7 +312,8 @@ void DNSLookup( char* url )
   
   dns->udp.len = HTONS(uip_len-sizeof(IPhdr));
   dns->udp.ip.len = HTONS(uip_len-sizeof(EtherNetII));
-  dns->udp.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
+  int pseudochksum = chksum(UDPPROTOCOL+uip_len-sizeof(EtherNetII),&dns->udp.ip.source[0],8);
+  dns->udp.chksum = HTONS(~(chksum(pseudochksum,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
   dns->udp.ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
   //Calculate all lengths
   //Calculate all checksums
