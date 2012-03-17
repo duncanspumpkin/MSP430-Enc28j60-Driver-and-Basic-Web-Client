@@ -2,7 +2,7 @@
 #include "ipstack.h"
 // Mac address of the enc28j60
 const unsigned char bytMacAddress[6] = {0x00,0xa0,0xc9,0x14,0xc8,0x00};
-char* url = "csr.stugo.co.uk\\machine";
+char* url = "www\\.google.com";//"csr.stugo.co.uk\\machine";
 char* data = "machine=1&state=1";
 
 int main( void )
