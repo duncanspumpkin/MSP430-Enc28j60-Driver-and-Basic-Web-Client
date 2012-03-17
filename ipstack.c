@@ -110,6 +110,8 @@ void ReplyArp()
     memcpy(&arpPacket->eth.SrcAddrs[0],&bytMacAddress[0],sizeof(bytMacAddress));
     memcpy(&arpPacket->targetMAC[0],&arpPacket->senderMAC[0],sizeof(bytMacAddress));
     memcpy(&arpPacket->senderMAC[0],&bytMacAddress[0],sizeof(bytMacAddress));
+    memcpy(&arpPacket->targetIP[0],&arpPacket->senderIP[0],4);
+    memcpy(&arpPacket->senderIP[0],&bytIPAddress[0],4);
     arpPacket->opCode = HTONS(ARPREPLY);
     uip_len = sizeof(ARP);  
     MACWrite();
@@ -261,18 +263,18 @@ void DNSLookup( char* url )
 {
   DNShdr* dns = (DNShdr*)&uip_buf[0];
   
-  dns->udp.sourcePort = HTONS(6543);//Place a number in here
+  dns->udp.sourcePort = HTONS(0xFFB3);//Place a number in here
   dns->udp.destPort = HTONS(DNSUDPPORT);
   dns->udp.len = 0;
   dns->udp.chksum = 0;
   dns->udp.ip.hdrlen = 5;
   dns->udp.ip.version = 4;
   dns->udp.ip.diffsf = 0;
-  dns->udp.ip.ident = 0;
+  dns->udp.ip.ident = 10;
   dns->udp.ip.fragmentOffset1 = 0;
   dns->udp.ip.fragmentOffset2 = 0;
   dns->udp.ip.flags = 0x2;
-  dns->udp.ip.ttl = 128;
+  dns->udp.ip.ttl = 64;
   dns->udp.ip.protocol = UDPPROTOCOL;
   dns->udp.ip.chksum = 0;
   memcpy(&dns->udp.ip.source[0], &bytIPAddress[0], 4);
@@ -281,7 +283,7 @@ void DNSLookup( char* url )
   memcpy(&dns->udp.ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
   memcpy(&dns->udp.ip.eth.DestAddrs[0],&bytRouterMac[0],6);
   
-  dns->id = 0x4; //Chosen at random roll of dice
+  dns->id = 0x1114; //Chosen at random roll of dice
   dns->flags = HTONS(0x0100);
   dns->qdCount = HTONS(1);
   dns->anCount = 0;
@@ -312,23 +314,26 @@ void DNSLookup( char* url )
   
   dns->udp.len = HTONS(uip_len-sizeof(IPhdr));
   dns->udp.ip.len = HTONS(uip_len-sizeof(EtherNetII));
-  dns->udp.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
+  int pseudochksum = chksum(UDPPROTOCOL+uip_len-sizeof(EtherNetII),&dns->udp.ip.source[0],8);
+  dns->udp.chksum = HTONS(~(chksum(pseudochksum,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
   dns->udp.ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
   //Calculate all lengths
   //Calculate all checksums
   MACWrite();
-  
   while(1)
   {
     GetPacket(UDPPROTOCOL);
-    dns = (DNShdr*)&uip_buf[0];
-    if ( dns->id == 0x4) //See above for reason
+    if( ((UDPhdr*)&uip_buf[0])->destPort == HTONS(DNSUDPPORT))
     {
-      //IP address is after original query so we should go to the end plus lenOfQuery
-      //There are also 12 bytes of other data we do not need to know
-      //Grab IP from message and copy into serverIP
-      memcpy(&serverIP[0],&uip_buf[sizeof(DNShdr)+lenOfQuery+12],4);
-      return;
+      dns = (DNShdr*)&uip_buf[0];
+      if ( dns->id == 0x1114) //See above for reason
+      {
+        //IP address is after original query so we should go to the end plus lenOfQuery
+        //There are also 12 bytes of other data we do not need to know
+        //Grab IP from message and copy into serverIP
+        memcpy(&serverIP[0],&uip_buf[sizeof(DNShdr)+lenOfQuery+12],4);
+        return;
+      }
     }
   }
 }
