@@ -2,7 +2,7 @@ Enc28j60 driver for the msp430 modified from driver by Iain Derrington (www.kand
 
 Implements a basic webclient that will send messages to a server. Will be able to read basic messages back.
 
-Webclient part not working yet.
+Webclient part now working.
 
 See http://mostlyprog.wordpress.com/2011/12/01/msp430-enc28j60-ethernet/ for progress.
 
@@ -22,8 +22,7 @@ Parts complete:
 2. Checked by sending ARP and recieving reply. Example to be added.
 3. Same as 2.
 4. Checked by sending and recieving Ping. Proper Example to be added.
+5. Checked by handshake with a server. Proper Example to be added.
+6. Checked by downloading basic web page. Note currently will not download but most of the code is there.
 
-Not Complete:
-
-5. Checked by handshake with a server. Current Focus.
-6. Checked by downloading basic web page.
+Now that the basic client is working focus is on finishing TCP cleanly and general tidy up of the code base.
