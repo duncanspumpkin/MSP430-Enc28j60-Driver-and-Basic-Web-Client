@@ -61,20 +61,21 @@ typedef struct
   unsigned int destPort;
   unsigned char seqNo[4];
   unsigned char ackNo[4];
-  unsigned char reserverd : 4;
-  unsigned char hdrLen : 4;
   unsigned char NS:1;
-  unsigned char CWR:1;
-  unsigned char ECE:1;
-  unsigned char URG:1;
-  unsigned char ACK:1;
-  unsigned char PSH:1;
-  unsigned char RST:1;
-  unsigned char SYN:1;
+  unsigned char reserverd : 3;
+  unsigned char hdrLen : 4;
   unsigned char FIN:1;
+  unsigned char SYN:1;
+  unsigned char RST:1;
+  unsigned char PSH:1;
+  unsigned char ACK:1;
+  unsigned char URG:1;
+  unsigned char ECE:1;
+  unsigned char CWR:1;
   unsigned int wndSize;
   unsigned int chksum;
   unsigned int urgentPointer;
+  //unsigned char options[8];
 }TCPhdr;
 
 typedef struct

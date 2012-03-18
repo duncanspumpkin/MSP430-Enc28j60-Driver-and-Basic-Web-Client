@@ -67,6 +67,27 @@ chksum(unsigned int sum, const unsigned char *data, unsigned int len)
   return sum;
 }
 
+void SetupBasicIPPacket( unsigned char protocol, unsigned char* destIP )
+{
+  IPhdr* ip = (IPhdr*)&uip_buf[0];
+  
+  ip->eth.type = HTONS(IPPACKET);
+  memcpy(&ip->eth.DestAddrs[0],&bytRouterMac[0],6);
+  memcpy(&ip->eth.SrcAddrs[0],&bytMacAddress[0],6);
+  
+  ip->version = 0x4;
+  ip->hdrlen = 0x5;
+  ip->diffsf = 0;
+  ip->ident = 2; //Chosen at random roll of dice
+  ip->flags = 0x2;
+  ip->fragmentOffset1 = 0x0;
+  ip->fragmentOffset2 = 0x0;
+  ip->ttl = 128;
+  ip->protocol = protocol;
+  ip->chksum = 0x0;
+  memcpy(&ip->source[0],&bytIPAddress[0],4);
+  memcpy(&ip->dest[0],&destIP[0],4);
+}
 //Change prep ARP so that it takes a ip address argument
 void SendArp(unsigned char* targetIP)
 {
@@ -130,8 +151,9 @@ void ackTcp(TCPhdr* tcp)
   memcpy(&tcp->ip.dest[0],&tcp->ip.source[0],4);
   memcpy(&tcp->ip.source[0],&bytIPAddress[0],4);
   // Next flip ports
+  unsigned int destPort = tcp->destPort;
   tcp->destPort = tcp->sourcePort;
-  tcp->sourcePort = HTONS(0x85ca);
+  tcp->sourcePort = destPort;
   // Swap ack and seq
   char ack[4];
   memcpy(&ack,&tcp->ackNo[0],4);
@@ -146,30 +168,21 @@ void ackTcp(TCPhdr* tcp)
   {
     add32(&tcp->ackNo[0],uip_len-sizeof(TCPhdr));
   }
+  tcp->SYN = 0;
+  tcp->ACK = 1;
+  tcp->hdrLen = (sizeof(TCPhdr)-sizeof(IPhdr))/4;
   uip_len = sizeof(TCPhdr);
-  tcp->chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],sizeof(TCPhdr)-sizeof(IPhdr))));
-  tcp->ip.len = HTONS(sizeof(TCPhdr)-sizeof(EtherNetII));
+  tcp->ip.len = HTONS(uip_len-sizeof(EtherNetII));
+  int pseudochksum = chksum(TCPPROTOCOL+uip_len-sizeof(IPhdr),&tcp->ip.source[0],8);
+  tcp->chksum = HTONS(~(chksum(pseudochksum,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
   tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
 }
 void SendPing( unsigned char* targetIP )
 {
+  SetupBasicIPPacket( ICMPPROTOCOL, targetIP );
   ICMPhdr* ping = (ICMPhdr*)&uip_buf[0];
   uip_len = sizeof(ICMPhdr);
-  memcpy(&ping->ip.eth.DestAddrs[0],&bytRouterMac[0],6);
-  memcpy(&ping->ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
-  ping->ip.eth.type = HTONS(0x0800);
-  ping->ip.version = 0x4;
-  ping->ip.hdrlen = 0x5;
-  ping->ip.diffsf = 0;
-  ping->ip.ident = 2;
-  ping->ip.flags = 0x2;
-  ping->ip.fragmentOffset1 = 0x0;
-  ping->ip.fragmentOffset2 = 0x0;
-  ping->ip.ttl = 128;
-  ping->ip.protocol = 0x01;
-  ping->ip.chksum = 0x0;
-  memcpy(&ping->ip.source[0],&bytIPAddress[0],4);
-  memcpy(&ping->ip.dest[0],&targetIP[0],4);
+  
   ping->type = 0x8;
   ping->code = 0x0;
   ping->chksum = 0x0;
@@ -292,27 +305,13 @@ int IPstackInit( unsigned char const* MacAddress)
 
 void DNSLookup( char* url )
 {
+  SetupBasicIPPacket(UDPPROTOCOL,&dnsServer[0]);
   DNShdr* dns = (DNShdr*)&uip_buf[0];
   
   dns->udp.sourcePort = HTONS(0xDC6F);//Place a number in here
   dns->udp.destPort = HTONS(DNSUDPPORT);
   dns->udp.len = 0;
   dns->udp.chksum = 0;
-  dns->udp.ip.hdrlen = 5;
-  dns->udp.ip.version = 4;
-  dns->udp.ip.diffsf = 0;
-  dns->udp.ip.ident = HTONS(0xae12);
-  dns->udp.ip.fragmentOffset1 = 0;
-  dns->udp.ip.fragmentOffset2 = 0;
-  dns->udp.ip.flags = 0x0;
-  dns->udp.ip.ttl = 64;
-  dns->udp.ip.protocol = UDPPROTOCOL;
-  dns->udp.ip.chksum = 0;
-  memcpy(&dns->udp.ip.source[0], &bytIPAddress[0], 4);
-  memcpy(&dns->udp.ip.dest[0], &dnsServer[0], 4);
-  dns->udp.ip.eth.type = HTONS(IPPACKET);
-  memcpy(&dns->udp.ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
-  memcpy(&dns->udp.ip.eth.DestAddrs[0],&bytRouterMac[0],6);
   
   dns->id = HTONS(0xfae3); //Chosen at random roll of dice
   dns->flags = HTONS(0x0100);
@@ -342,14 +341,15 @@ void DNSLookup( char* url )
   *dnsq++ = 1;
   //char lenOfQuery = (unsigned char*)dnsq-&uip_buf[sizeof(DNShdr)];
   uip_len = (unsigned char*)dnsq-&uip_buf[0];
-  
+  //Calculate all lengths
   dns->udp.len = HTONS(uip_len-sizeof(IPhdr));
   dns->udp.ip.len = HTONS(uip_len-sizeof(EtherNetII));
+  //Calculate all checksums
   int pseudochksum = chksum(UDPPROTOCOL+uip_len-sizeof(IPhdr),&dns->udp.ip.source[0],8);
   dns->udp.chksum = HTONS(~(chksum(pseudochksum,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
   dns->udp.ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
-  //Calculate all lengths
-  //Calculate all checksums
+  
+  
   MACWrite();
   while(1)
   {
@@ -375,10 +375,48 @@ int IPstackHTMLPost( char* url, char* data)
   //First we need to do some DNS looking up
   DNSLookup(url); //Fills in serverIP
   //Now that we have the IP we can connect to the server
+  memset(&uip_buf[0],0,sizeof(TCPhdr));//zero the memory as we need all flags = 0
+  
   //Syn server
-  GetPacket(TCPPROTOCOL);
+  SetupBasicIPPacket( TCPPROTOCOL, &serverIP[0] );
+  TCPhdr* tcp = (TCPhdr*)&uip_buf[0];
+  tcp->sourcePort = HTONS(0xe2d7);
+  tcp->destPort = HTONS(80);
+  //Seq No and Ack No are zero
+  tcp->seqNo[0] = 1;
+  tcp->hdrLen = (sizeof(TCPhdr)-sizeof(IPhdr))/4;
+  tcp->SYN = 1;
+  tcp->wndSize = HTONS(200);
+  //Add in some basic options
+  unsigned char opts[] = { 0x02, 0x04,0x05,0xb4,0x01,0x01,0x04,0x02};
+  //memcpy(&tcp->options[0],&opts[0],8);
+  uip_len = sizeof(TCPhdr);
+  tcp->ip.len = HTONS(sizeof(TCPhdr)-sizeof(EtherNetII));
+  int pseudochksum = chksum(TCPPROTOCOL+uip_len-sizeof(IPhdr),&tcp->ip.source[0],8);
+  tcp->chksum = HTONS(~(chksum(pseudochksum,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
+  tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
+  MACWrite();
   //ack syn/ack
+  GetPacket(TCPPROTOCOL);
+  ackTcp(tcp);
+  MACWrite();
+  
   //Send the actual data
+  //first we need change to a push
+  tcp->PSH = 1;
+  tcp->ip.ident = 0xDEED;
+  //Now copy in the data
+  int datalen = strlen(data);
+  memcpy(&uip_buf[sizeof(TCPhdr)],data,datalen);
+  uip_len = sizeof(TCPhdr) + datalen;
+  tcp->ip.len = HTONS(uip_len-sizeof(EtherNetII));
+  tcp->chksum = 0;
+  tcp->ip.chksum = 0;
+  pseudochksum = chksum(TCPPROTOCOL+uip_len-sizeof(IPhdr),&tcp->ip.source[0],8);
+  tcp->chksum = HTONS(~(chksum(pseudochksum,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
+  tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
+  MACWrite();
+  
   return 0;
 }
 
