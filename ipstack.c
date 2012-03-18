@@ -10,7 +10,7 @@ unsigned char serverIP[4];
 
 unsigned char bytIPAddress[4] = {192,168,0,50};
 unsigned char routerIP[4] = {192,168,0,1};
-
+unsigned char dnsServer[4] = {192,168,0,1};
 void
 add32(unsigned char *op32, unsigned int op16)
 {
@@ -151,10 +151,41 @@ void ackTcp(TCPhdr* tcp)
   tcp->ip.len = HTONS(sizeof(TCPhdr)-sizeof(EtherNetII));
   tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
 }
+void SendPing( unsigned char* targetIP )
+{
+  ICMPhdr* ping = (ICMPhdr*)&uip_buf[0];
+  uip_len = sizeof(ICMPhdr);
+  memcpy(&ping->ip.eth.DestAddrs[0],&bytRouterMac[0],6);
+  memcpy(&ping->ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
+  ping->ip.eth.type = HTONS(0x0800);
+  ping->ip.version = 0x4;
+  ping->ip.hdrlen = 0x5;
+  ping->ip.diffsf = 0;
+  ping->ip.ident = 2;
+  ping->ip.flags = 0x2;
+  ping->ip.fragmentOffset1 = 0x0;
+  ping->ip.fragmentOffset2 = 0x0;
+  ping->ip.ttl = 128;
+  ping->ip.protocol = 0x01;
+  ping->ip.chksum = 0x0;
+  memcpy(&ping->ip.source[0],&bytIPAddress[0],4);
+  memcpy(&ping->ip.dest[0],&targetIP[0],4);
+  ping->type = 0x8;
+  ping->code = 0x0;
+  ping->chksum = 0x0;
+  ping->iden = HTONS(0x1);
+  ping->seqNum = HTONS(0x2);
 
+  ping->chksum = HTONS(~(chksum(0,&uip_buf[sizeof(IPhdr)],60-sizeof(IPhdr))));
+  ping->ip.len = HTONS(sizeof(ICMPhdr)-sizeof(EtherNetII));
+  ping->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
+  
+  MACWrite();  
+}
 void PingReply()
 {
   ICMPhdr* ping = (ICMPhdr*)&uip_buf[0];
+
   if ( ping->type == ICMPREQUEST )
   {
     ping->type = ICMPREPLY;
@@ -263,27 +294,27 @@ void DNSLookup( char* url )
 {
   DNShdr* dns = (DNShdr*)&uip_buf[0];
   
-  dns->udp.sourcePort = HTONS(0xFFB3);//Place a number in here
+  dns->udp.sourcePort = HTONS(0xDC6F);//Place a number in here
   dns->udp.destPort = HTONS(DNSUDPPORT);
   dns->udp.len = 0;
   dns->udp.chksum = 0;
   dns->udp.ip.hdrlen = 5;
   dns->udp.ip.version = 4;
   dns->udp.ip.diffsf = 0;
-  dns->udp.ip.ident = 10;
+  dns->udp.ip.ident = HTONS(0xae12);
   dns->udp.ip.fragmentOffset1 = 0;
   dns->udp.ip.fragmentOffset2 = 0;
-  dns->udp.ip.flags = 0x2;
+  dns->udp.ip.flags = 0x0;
   dns->udp.ip.ttl = 64;
   dns->udp.ip.protocol = UDPPROTOCOL;
   dns->udp.ip.chksum = 0;
   memcpy(&dns->udp.ip.source[0], &bytIPAddress[0], 4);
-  memcpy(&dns->udp.ip.dest[0], &routerIP[0], 4);
+  memcpy(&dns->udp.ip.dest[0], &dnsServer[0], 4);
   dns->udp.ip.eth.type = HTONS(IPPACKET);
   memcpy(&dns->udp.ip.eth.SrcAddrs[0],&bytMacAddress[0],6);
   memcpy(&dns->udp.ip.eth.DestAddrs[0],&bytRouterMac[0],6);
   
-  dns->id = 0x1114; //Chosen at random roll of dice
+  dns->id = HTONS(0xfae3); //Chosen at random roll of dice
   dns->flags = HTONS(0x0100);
   dns->qdCount = HTONS(1);
   dns->anCount = 0;
@@ -309,12 +340,12 @@ void DNSLookup( char* url )
   *dnsq++ = 1;
   *dnsq++ = 0;
   *dnsq++ = 1;
-  char lenOfQuery = (unsigned char*)dnsq-&uip_buf[sizeof(DNShdr)];
+  //char lenOfQuery = (unsigned char*)dnsq-&uip_buf[sizeof(DNShdr)];
   uip_len = (unsigned char*)dnsq-&uip_buf[0];
   
   dns->udp.len = HTONS(uip_len-sizeof(IPhdr));
   dns->udp.ip.len = HTONS(uip_len-sizeof(EtherNetII));
-  int pseudochksum = chksum(UDPPROTOCOL+uip_len-sizeof(EtherNetII),&dns->udp.ip.source[0],8);
+  int pseudochksum = chksum(UDPPROTOCOL+uip_len-sizeof(IPhdr),&dns->udp.ip.source[0],8);
   dns->udp.chksum = HTONS(~(chksum(pseudochksum,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
   dns->udp.ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
   //Calculate all lengths
@@ -323,15 +354,17 @@ void DNSLookup( char* url )
   while(1)
   {
     GetPacket(UDPPROTOCOL);
-    if( ((UDPhdr*)&uip_buf[0])->destPort == HTONS(DNSUDPPORT))
+    if( ((UDPhdr*)&uip_buf[0])->sourcePort == HTONS(DNSUDPPORT))
     {
       dns = (DNShdr*)&uip_buf[0];
-      if ( dns->id == 0x1114) //See above for reason
+      if ( dns->id == HTONS(0xfae3)) //See above for reason
       {
         //IP address is after original query so we should go to the end plus lenOfQuery
         //There are also 12 bytes of other data we do not need to know
         //Grab IP from message and copy into serverIP
-        memcpy(&serverIP[0],&uip_buf[sizeof(DNShdr)+lenOfQuery+12],4);
+        //The address should be the last 4 bytes of the buffer. This is not fool proof and
+        //should be changed in the future
+        memcpy(&serverIP[0],&uip_buf[uip_len-4],4);
         return;
       }
     }
