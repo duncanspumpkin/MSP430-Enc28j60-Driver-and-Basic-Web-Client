@@ -7,9 +7,9 @@ void initMAC(void);
 unsigned int MACWrite(void);
 // function to read a byte (if there) into a buffer
 unsigned int MACRead(void);
-extern unsigned char uip_len;
+extern unsigned int uip_len;
 extern unsigned char* uip_appdata;
-extern unsigned char uip_buf[250];
+extern unsigned char uip_buf[400];
 extern const unsigned char bytMacAddress[6];
 
 #define UIP_LLH_LEN     14
@@ -44,7 +44,7 @@ typedef union {
 typedef union {
 	unsigned char v[6];
 	struct {
-		unsigned int     NextPacket;
+		unsigned int    NextPacket;
                 unsigned int	ByteCount;
 		unsigned char	LongEvent:1;
 		unsigned char	Reserved:1;

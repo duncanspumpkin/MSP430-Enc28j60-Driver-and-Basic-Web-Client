@@ -3,14 +3,15 @@
 #include <string.h>
 // Switch to host order for the enc28j60
 #define HTONS(x) ((x<<8)|(x>>8))
-unsigned char uip_buf[250];
-unsigned char uip_len;
+unsigned char uip_buf[400];
+unsigned int uip_len;
 unsigned char bytRouterMac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
 unsigned char serverIP[4];
 
-unsigned char bytIPAddress[4] = {192,168,0,50};
-unsigned char routerIP[4] = {192,168,0,1};
-unsigned char dnsServer[4] = {192,168,0,1};
+unsigned char bytIPAddress[4] = {10,2,0,153};
+unsigned char routerIP[4] = {10,2,0,1};
+unsigned char dnsServer[4] = {130,159,176,4};
+
 void
 add32(unsigned char *op32, unsigned int op16)
 {
@@ -303,11 +304,11 @@ int IPstackInit( unsigned char const* MacAddress)
   return 0;
 }
 
+
 void DNSLookup( char* url )
 {
   SetupBasicIPPacket(UDPPROTOCOL,&dnsServer[0]);
   DNShdr* dns = (DNShdr*)&uip_buf[0];
-  
   dns->udp.sourcePort = HTONS(0xDC6F);//Place a number in here
   dns->udp.destPort = HTONS(DNSUDPPORT);
   dns->udp.len = 0;
@@ -370,7 +371,7 @@ void DNSLookup( char* url )
     }
   }
 }
-int IPstackHTMLPost( char* url, char* data)
+int IPstackHTMLPost( char* url, char* data, char* reply)
 {
   //First we need to do some DNS looking up
   DNSLookup(url); //Fills in serverIP
@@ -397,7 +398,9 @@ int IPstackHTMLPost( char* url, char* data)
   tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
   MACWrite();
   //ack syn/ack
-  GetPacket(TCPPROTOCOL);
+  do{
+    GetPacket(TCPPROTOCOL);
+  }while(!(tcp->destPort==HTONS(0xe2d7)));
   ackTcp(tcp);
   MACWrite();
   
@@ -417,6 +420,23 @@ int IPstackHTMLPost( char* url, char* data)
   tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
   MACWrite();
   
+  do{
+    GetPacket(TCPPROTOCOL);
+  }while(!(tcp->destPort==HTONS(0xe2d7)));
+  memcpy(&reply[0],&uip_buf[uip_len-7],7);
+  ackTcp(tcp);
+  MACWrite();
+  
+  tcp->PSH=0;
+  tcp->FIN=1;
+  tcp->ACK=1;
+  tcp->chksum = 0;
+  tcp->ip.chksum = 0;
+  pseudochksum = chksum(TCPPROTOCOL+uip_len-sizeof(IPhdr),&tcp->ip.source[0],8);
+  tcp->chksum = HTONS(~(chksum(pseudochksum,&uip_buf[sizeof(IPhdr)],uip_len-sizeof(IPhdr))));
+  tcp->ip.chksum = HTONS(~(chksum(0,&uip_buf[sizeof(EtherNetII)],sizeof(IPhdr)-sizeof(EtherNetII))));
+  MACWrite();
+  //Now we need to copy the payload to the reply buffer and ack the reply
   return 0;
 }
 

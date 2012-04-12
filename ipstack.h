@@ -2,7 +2,7 @@
 #define IPSTACK_H
 
 int IPstackInit( unsigned char const* MacAddress);
-int IPstackHTMLPost( char* url, char* data);
+int IPstackHTMLPost( char* url, char* data, char* reply);
 int IPstackIdle();
 
 #pragma pack(1)

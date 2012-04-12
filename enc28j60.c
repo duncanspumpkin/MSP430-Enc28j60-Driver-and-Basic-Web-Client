@@ -20,12 +20,12 @@
 /** MAC address. Should  be set using a function.*/
 
 TXSTATUS TxStatus;
-
+RXSTATUS ptrRxStatus;
 // define private functions
 static unsigned char ReadETHReg(unsigned char);         // read a ETX reg
 static unsigned char ReadMacReg(unsigned char);         // read a MAC reg
 static unsigned int ReadPhyReg(unsigned char);         // read a PHY reg
-static unsigned int ReadMacBuffer(unsigned char * ,unsigned char);    //read the mac buffer (ptrBuffer, no. of bytes)
+static unsigned int ReadMacBuffer(unsigned char * ,unsigned int);    //read the mac buffer (ptrBuffer, no. of bytes)
 static unsigned char WriteCtrReg(unsigned char,unsigned char);               // write to control reg
 static unsigned char WritePhyReg(unsigned char,unsigned int);               // write to a phy reg
 static unsigned int WriteMacBuffer(unsigned char *,unsigned int);    // write to mac buffer
@@ -231,7 +231,7 @@ unsigned int MACRead()
   volatile unsigned int int_pckLen,test;
   volatile unsigned int int_rdptr, int_wrtptr;
   static unsigned int nextpckptr = RXSTART;
-  volatile RXSTATUS ptrRxStatus;
+  //volatile RXSTATUS ptrRxStatus;
   volatile unsigned char bytPacket;
 
   BankSel(1);
@@ -426,7 +426,7 @@ static unsigned char WriteCtrReg(unsigned char bytAddress,unsigned char bytData)
  * \return uint  Number of bytes read.
  */
 /**********************************************************************/
-static unsigned int ReadMacBuffer(unsigned char * bytBuffer,unsigned char byt_length)
+static unsigned int ReadMacBuffer(unsigned char * bytBuffer,unsigned int byt_length)
 {
   unsigned char bytOpcode;
   volatile unsigned int len;
