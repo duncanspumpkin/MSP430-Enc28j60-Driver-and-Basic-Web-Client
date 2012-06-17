@@ -10,7 +10,7 @@ unsigned int MACRead(void);
 extern unsigned int uip_len;
 extern unsigned char* uip_appdata;
 extern unsigned char uip_buf[400];
-extern const unsigned char bytMacAddress[6];
+extern const unsigned char deviceMAC[6];
 
 #define UIP_LLH_LEN     14
 #define UIP_TCPIP_HLEN 28

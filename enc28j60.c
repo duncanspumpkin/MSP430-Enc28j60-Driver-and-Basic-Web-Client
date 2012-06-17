@@ -99,12 +99,12 @@ void initMAC(void)
             //Program our MAC address
   BankSel(3);              
   
-  WriteCtrReg(MAADR1,bytMacAddress[0]);   
-  WriteCtrReg(MAADR2,bytMacAddress[1]);  
-  WriteCtrReg(MAADR3,bytMacAddress[2]);
-  WriteCtrReg(MAADR4,bytMacAddress[3]);
-  WriteCtrReg(MAADR5,bytMacAddress[4]);
-  WriteCtrReg(MAADR6,bytMacAddress[5]);
+  WriteCtrReg(MAADR1,deviceMAC[0]);   
+  WriteCtrReg(MAADR2,deviceMAC[1]);  
+  WriteCtrReg(MAADR3,deviceMAC[2]);
+  WriteCtrReg(MAADR4,deviceMAC[3]);
+  WriteCtrReg(MAADR5,deviceMAC[4]);
+  WriteCtrReg(MAADR6,deviceMAC[5]);
 
   // Initialise the PHY registes
   WritePhyReg(PHCON1, 0x000);
@@ -568,7 +568,7 @@ static void ResetMac(void)
   SPIWrite(&bytOpcode,1);     // Tx opcode and address
   SEL_MAC(FALSE);
   
-  __delay_cycles(16000);
+  __delay_cycles(160000);
 }
 
 
