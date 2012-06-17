@@ -19,7 +19,7 @@ Parts to do:
 Parts complete:
 
 1. Checked by simple reads and writes to enc28j60. See spi_test.c for example.
-2. Checked by sending ARP and recieving reply. Example to be added.
+2. Checked by sending ARP and recieving reply. See arp_test.c for example.
 3. Same as 2.
 4. Checked by sending and recieving Ping. Proper Example to be added.
 5. Checked by handshake with a server. Proper Example to be added.
