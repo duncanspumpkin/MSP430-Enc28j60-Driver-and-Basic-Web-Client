@@ -254,10 +254,17 @@ unsigned int MACRead()
   
                                         // ptrBuffer should now contain a MAC packet
   BankSel(0);
-  //See errata possible problem!
-  WriteCtrReg(ERXRDPTL,ptrRxStatus.v[0]);  // free up ENC memory my adjustng the Rx Read ptr
-  WriteCtrReg(ERXRDPTH,ptrRxStatus.v[1]);
- 
+  //See errata this fixes ERXRDPT as it has to always be odd.
+  if ( ((nextpckptr - 1) < RXSTART) || ((nextpckptr-1) > RXEND))
+  {
+    WriteCtrReg(ERXRDPTL, (RXEND & 0x00ff));  // free up ENC memory my adjustng the Rx Read ptr
+    WriteCtrReg(ERXRDPTH, ((RXEND & 0xff00) >> 8));
+  }
+  else
+  {
+    WriteCtrReg(ERXRDPTL, (( nextpckptr - 1 ) & 0x00ff ));  // free up ENC memory my adjustng the Rx Read ptr
+    WriteCtrReg(ERXRDPTH, ((( nextpckptr - 1 ) & 0xff00 ) >> 8 ));
+  }
   // decrement packet counter
   SetBitField(ECON2, ECON2_PKTDEC);
  
