@@ -254,6 +254,7 @@ unsigned int MACRead()
   
                                         // ptrBuffer should now contain a MAC packet
   BankSel(0);
+  //See errata possible problem!
   WriteCtrReg(ERXRDPTL,ptrRxStatus.v[0]);  // free up ENC memory my adjustng the Rx Read ptr
   WriteCtrReg(ERXRDPTH,ptrRxStatus.v[1]);
  
