@@ -61,11 +61,13 @@ static void BankSel(unsigned char);
 void initMAC(void)
 {
   initSPI();        // initialise the SPI
-
+  
   ResetMac();       // erm. Resets the MAC.
   
                     // setup memory by defining ERXST and ERXND
   BankSel(0);       // select bank 0
+  while ( !(ReadETHReg(ESTAT)&ESTAT_CLKRDY) );
+  
   WriteCtrReg(ERXSTL,(unsigned char)( RXSTART & 0x00ff));    
   WriteCtrReg(ERXSTH,(unsigned char)((RXSTART & 0xff00)>> 8));
   WriteCtrReg(ERXNDL,(unsigned char)( RXEND   & 0x00ff));
@@ -576,7 +578,7 @@ static void ResetMac(void)
   SPIWrite(&bytOpcode,1);     // Tx opcode and address
   SEL_MAC(FALSE);
   
-  __delay_cycles(160000);
+  __delay_cycles(1600000);
 }
 
 
