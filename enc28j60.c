@@ -32,7 +32,10 @@ static unsigned char ClrBitField(unsigned char, unsigned char);
 static void BankSel(unsigned char);
 
 //define usefull macros
+//Change these depending on hardware
 #define CS BIT0
+//Clock Speed in Hz /10 should be this value
+#define NO_CYCLES_FOR_10_MS 100000
 
 /** MACRO for selecting or deselecting chip select for the ENC28J60. Some HW dependancy.*/
 #define SEL_MAC(x)  (x==TRUE) ? (P2OUT&=(~CS)) : (P2OUT|=CS)   
@@ -577,8 +580,8 @@ static void ResetMac(void)
   
   SPIWrite(&bytOpcode,1);     // Tx opcode and address
   SEL_MAC(FALSE);
-  
-  __delay_cycles(1600000);
+  //Change this to a 0.1 second delay
+  __delay_cycles(NO_CYCLES_FOR_10_MS);
 }
 
 
