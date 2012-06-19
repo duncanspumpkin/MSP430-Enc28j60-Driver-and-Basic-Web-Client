@@ -24,7 +24,7 @@ void initSPI(void)
   // Use CPU clk
   UCB0CTL1 |= UCSSEL_2;
   // No division of CPU clk
-  UCB0BR0 |= 0x1;
+  UCB0BR0 = 0x1;
   UCB0BR1 = 0;
   // Using these ports for SPI
   P3SEL |= SCLK + SDO + SDI;

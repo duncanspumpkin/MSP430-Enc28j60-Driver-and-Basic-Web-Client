@@ -2,15 +2,12 @@
 #define ENC28J60_H
 
 //initialisation routine
-void initMAC(void);
+void initMAC(const unsigned char* deviceMAC);
 // function to write and send a packet from the ENC28J60_H
-unsigned int MACWrite(void);
+unsigned int MACWrite(unsigned char* packet, unsigned int len);
 // function to read a byte (if there) into a buffer
-unsigned int MACRead(void);
-extern unsigned int uip_len;
-extern unsigned char* uip_appdata;
-extern unsigned char uip_buf[400];
-extern const unsigned char deviceMAC[6];
+unsigned int MACRead(unsigned char* packet, unsigned int maxLen);
+
 
 #define UIP_LLH_LEN     14
 #define UIP_TCPIP_HLEN 28
@@ -118,7 +115,7 @@ typedef union {
 #define ECON2		0x1E
 #define ECON1		0x1F
 
-
+// Bank 1 registers ---------
 #define EHT0		0x00
 #define EHT1		0x01
 #define EHT2		0x02
@@ -144,6 +141,7 @@ typedef union {
 
 // Bank 2 registers -----
 #define MACON1		0x00
+#define MACON2          0x01
 #define MACON3		0x02
 #define MACON4		0x03
 #define MABBIPG		0x04

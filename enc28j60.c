@@ -1,7 +1,6 @@
 #include <msp430.h>
 #include "enc28j60.h"
 #include "spi.h"
-//#include "uip\uip.h"
 /******************************************************************************/
 /** \file enc28j60.c
  *  \brief Driver code for enc28j60.
@@ -15,9 +14,6 @@
 
 #define TRUE  1
 #define FALSE 0
-// define private variables
-
-/** MAC address. Should  be set using a function.*/
 
 TXSTATUS TxStatus;
 RXSTATUS ptrRxStatus;
@@ -48,7 +44,7 @@ static void BankSel(unsigned char);
 /** \brief Initialise the MAC.
  *
  * Description: \n
- * a) Setup SPI device. Assume Reb B5 for sub 8MHz operation \n
+ * a) Setup SPI device. Assume Reb B7 for sub 8MHz operation \n
  * b) Setup buffer ptrs to devide memory in In and Out mem \n
  * c) Setup receive filters (accept only unicast).\n
  * d) Setup MACON registers (MAC control registers)\n
@@ -58,49 +54,74 @@ static void BankSel(unsigned char);
  * \date 0.1 20/06/07 First draft
  */
 /**********************************************************************/
-void initMAC(void)
+void initMAC(const unsigned char* deviceMAC)
 {
   initSPI();        // initialise the SPI
   
   ResetMac();       // erm. Resets the MAC.
   
-                    // setup memory by defining ERXST and ERXND
-  BankSel(0);       // select bank 0
+                    
+  BankSel(0); 
   while ( !(ReadETHReg(ESTAT)&ESTAT_CLKRDY) );
   
+  //---Setup Recieve Buffer---
+  //Start of buffer
   WriteCtrReg(ERXSTL,(unsigned char)( RXSTART & 0x00ff));    
   WriteCtrReg(ERXSTH,(unsigned char)((RXSTART & 0xff00)>> 8));
+  //End of buffer
   WriteCtrReg(ERXNDL,(unsigned char)( RXEND   & 0x00ff));
   WriteCtrReg(ERXNDH,(unsigned char)((RXEND   & 0xff00)>>8));
-
-                    // Make sure Rx Read ptr is at the start of Rx segment
+  //RX read ptr placed at start of buffer
   WriteCtrReg(ERXRDPTL, (unsigned char)( RXSTART & 0x00ff));
   WriteCtrReg(ERXRDPTH, (unsigned char)((RXSTART & 0xff00)>> 8));
-
-  BankSel(1);                             // select bank 1
-  WriteCtrReg(ERXFCON,( ERXFCON_UCEN + ERXFCON_CRCEN + ERXFCON_BCEN));
-
-
-                // Initialise the MAC registers
-  BankSel(2);                             // select bank 2
-  SetBitField(MACON1, MACON1_MARXEN);     // Enable reception of frames
-  WriteCtrReg(MACLCON2, 63);
-  WriteCtrReg(MACON3, MACON3_FRMLNEN +    // Type / len field will be checked
+  //---Setup Transmit Buffer---
+  //Start of buffer
+  WriteCtrReg(ETXSTL,(unsigned char)( TXSTART & 0x00ff)); 
+  WriteCtrReg(ETXSTH,(unsigned char)((TXSTART & 0xff00)>>8));
+  //End buffer not set as will be packet dependant
+  
+  
+  BankSel(1);   
+  
+  //---Setup packet filter---
+  //This is pinched from Guido Socher AVR enc28j60 driver
+  //For broadcast packets we allow only ARP packtets
+  //All other packets should be unicast only for our mac (MAADR)
+  //The pattern to match on is therefore
+  //Type     ETH.DST
+  //ARP      BROADCAST
+  //06 08 -- ff ff ff ff ff ff -> ip checksum for theses bytes=f7f9
+  //in binary these poitions are:11 0000 0011 1111
+  //This is hex 303F->EPMM0=0x3f,EPMM1=0x30
+  WriteCtrReg(ERXFCON,( ERXFCON_UCEN + ERXFCON_CRCEN + ERXFCON_PMEN));
+  WriteCtrReg(EPMM0, 0x3f);
+  WriteCtrReg(EPMM1, 0x30);
+  WriteCtrReg(EPMCSL,0x39);
+  WriteCtrReg(EPMCSH,0xf7);
+  
+ 
+  BankSel(2);
+  
+  //---Setup MAC registers---                          
+  WriteCtrReg(MACON1, MACON1_MARXEN|MACON1_TXPAUS|MACON1_RXPAUS);     // Enable reception of frames
+  WriteCtrReg(MACON2, 0x00);
+  SetBitField(MACON3, MACON3_FRMLNEN +    // Type / len field will be checked
                       MACON3_TXCRCEN +    // MAC will append valid CRC
                       MACON3_PADCFG0);    // All small packets will be padded
-                      
-
-  SetBitField(MACON4, MACON4_DEFER);      
+  WriteCtrReg(MAIPGL , 0x12);             // non back to back interpacket gap. set as per data sheet
+  WriteCtrReg(MAIPGH , 0x0C); 
+  WriteCtrReg(MABBIPG, 0x12);             // back to back interpacket gap. set as per data sheet
   WriteCtrReg(MAMXFLL, (unsigned char)( MAXFRAMELEN & 0x00ff));     // set max frame len
   WriteCtrReg(MAMXFLH, (unsigned char)((MAXFRAMELEN & 0xff00)>>8));
-  WriteCtrReg(MABBIPG, 0x12);             // back to back interpacket gap. set as per data sheet
-  WriteCtrReg(MAIPGL , 0x12);             // non back to back interpacket gap. set as per data sheet
-  WriteCtrReg(MAIPGH , 0x0C);
-
   
-            //Program our MAC address
-  BankSel(3);              
+  //Not sure what these were for
+  //WriteCtrReg(MACLCON2, 63);
+  //SetBitField(MACON4, MACON4_DEFER);      
   
+  
+  BankSel(3);   
+  
+  //---Setup MAC address---
   WriteCtrReg(MAADR1,deviceMAC[0]);   
   WriteCtrReg(MAADR2,deviceMAC[1]);  
   WriteCtrReg(MAADR3,deviceMAC[2]);
@@ -109,7 +130,7 @@ void initMAC(void)
   WriteCtrReg(MAADR6,deviceMAC[5]);
 
   // Initialise the PHY registes
-  WritePhyReg(PHCON1, 0x000);
+  //WritePhyReg(PHCON1, 0x000);
   WritePhyReg(PHCON2, PHCON2_HDLDIS);
   WriteCtrReg(ECON1,  ECON1_RXEN);     //Enable the chip for reception of packets
 }
@@ -132,42 +153,24 @@ void initMAC(void)
  * \return uint True or false. 
  */
 /**********************************************************************/
-unsigned int MACWrite()
+unsigned int MACWrite(unsigned char* packet, unsigned int len)
 {
   volatile unsigned int i;
-  volatile unsigned int address = TXSTART;
-  unsigned char  bytControl;
+  //Control byte meaning use settings in MACON3
+  unsigned char  bytControl = 0x00;
   
-  bytControl = 0x00;
-  
-  BankSel(0);                                          // select bank 0
-  WriteCtrReg(ETXSTL,(unsigned char)( TXSTART & 0x00ff));        // write ptr to start of Tx packet
-  WriteCtrReg(ETXSTH,(unsigned char)((TXSTART & 0xff00)>>8));
-
-  WriteCtrReg(EWRPTL,(unsigned char)( TXSTART & 0x00ff));        // Set write buffer to point to start of Tx Buffer
+  BankSel(0);             
+  // Set write buffer to point to start of Tx Buffer
+  WriteCtrReg(EWRPTL,(unsigned char)( TXSTART & 0x00ff));        
   WriteCtrReg(EWRPTH,(unsigned char)((TXSTART & 0xff00)>>8));
-
-  WriteMacBuffer(&bytControl,1);                       // write per packet control byte
-  address++;
-  address+=WriteMacBuffer(&uip_buf[0], uip_len);  
-
-  /*
-  if(uip_len <= UIP_LLH_LEN + UIP_TCPIP_HLEN) 
-  {
-    address+=WriteMacBuffer(&uip_buf[UIP_LLH_LEN], uip_len - UIP_LLH_LEN);
-  } 
-  else 
-  {
-    address+=WriteMacBuffer(&uip_buf[UIP_LLH_LEN], UIP_TCPIP_HLEN);
-    address+=WriteMacBuffer(uip_appdata, uip_len - UIP_TCPIP_HLEN - UIP_LLH_LEN);
-  }*/
-
-
-  address--;
-  WriteCtrReg(ETXNDL, (unsigned char)( address & 0x00ff));       // Tell MAC when the end of the packet is
-  WriteCtrReg(ETXNDH, (unsigned char)((address & 0xff00)>>8));
+  // Tell MAC when the end of the packet is
+  WriteCtrReg(ETXNDL, (unsigned char)( (len+TXSTART) & 0x00ff));       
+  WriteCtrReg(ETXNDH, (unsigned char)(((len+TXSTART) & 0xff00)>>8));
   
- 
+  // write per packet control byte
+  WriteMacBuffer(&bytControl,1);  
+  WriteMacBuffer(packet, len);  
+  
   ClrBitField(EIR,EIR_TXIF);
   SetBitField(EIE, EIE_TXIE |EIE_INTIE);
 
@@ -180,10 +183,9 @@ unsigned int MACWrite()
 
   ClrBitField(ECON1, ECON1_TXRTS);
   
-  BankSel(0);                                         // read tx status bytes
-  address++;                                          // increment ptr to address to start of status struc
-  WriteCtrReg(ERDPTL, (unsigned char)( address & 0x00ff));      // Setup the buffer read ptr to read status struc
-  WriteCtrReg(ERDPTH, (unsigned char)((address & 0xff00)>>8));
+  len++; //Adds on control byte
+  WriteCtrReg(ERDPTL, (unsigned char)( len & 0x00ff));      // Setup the buffer read ptr to read status struc
+  WriteCtrReg(ERDPTH, (unsigned char)((len & 0xff00)>>8));
   ReadMacBuffer(&TxStatus.v[0],7);
 
   if (ReadETHReg(ESTAT) & ESTAT_TXABRT)                // did transmission get interrupted?
@@ -228,50 +230,50 @@ unsigned int MACWrite()
 
  */
 /**********************************************************************/
-unsigned int MACRead()
+unsigned int MACRead(unsigned char* packet, unsigned int maxLen)
 {
-  volatile unsigned int int_pckLen,test;
-  volatile unsigned int int_rdptr, int_wrtptr;
+  volatile unsigned int pckLen;
   static unsigned int nextpckptr = RXSTART;
   //volatile RXSTATUS ptrRxStatus;
-  volatile unsigned char bytPacket;
+  volatile unsigned char numPackets;
 
   BankSel(1);
-  
-  bytPacket = ReadETHReg(EPKTCNT);          // How many packets have been received
-  
-  if(bytPacket == 0)
-    return bytPacket;                       // No full packets received
+  // How many packets have been received
+  numPackets = ReadETHReg(EPKTCNT);          
+  if(numPackets == 0)
+    return numPackets;    // No full packets received
   
   BankSel(0);
-
-  WriteCtrReg(ERDPTL,(unsigned char)( nextpckptr & 0x00ff));   //write this value to read buffer ptr
+  //Set read pointer to start of packet
+  WriteCtrReg(ERDPTL,(unsigned char)( nextpckptr & 0x00ff));   
   WriteCtrReg(ERDPTH,(unsigned char)((nextpckptr & 0xff00)>>8));
-
-  ReadMacBuffer((unsigned char*)&ptrRxStatus.v[0],6);             // read next packet ptr + 4 status bytes
+  // read next packet ptr + 4 status bytes
+  ReadMacBuffer((unsigned char*)&ptrRxStatus.v[0],6);
+  //Set nextpckptr for next call of ReadMAC
   nextpckptr = ptrRxStatus.bits.NextPacket;
   
-  uip_len=ptrRxStatus.bits.ByteCount - 4; //We take away 4 as that is the CRC
-  ReadMacBuffer(uip_buf,uip_len);   // read packet into buffer
+  //We take away 4 as that is the CRC checksum and we do not need it
+  pckLen=ptrRxStatus.bits.ByteCount - 4; 
+  if( pckLen > (maxLen-1) ) pckLen = maxLen-1;
+  //read the packet
+  ReadMacBuffer(packet,pckLen);   
   
-                                        // ptrBuffer should now contain a MAC packet
-  BankSel(0);
+  //free up ENC memory my adjustng the Rx Read ptr                                      
   //See errata this fixes ERXRDPT as it has to always be odd.
   if ( ((nextpckptr - 1) < RXSTART) || ((nextpckptr-1) > RXEND))
   {
-    WriteCtrReg(ERXRDPTL, (RXEND & 0x00ff));  // free up ENC memory my adjustng the Rx Read ptr
+    WriteCtrReg(ERXRDPTL, (RXEND & 0x00ff));  
     WriteCtrReg(ERXRDPTH, ((RXEND & 0xff00) >> 8));
   }
   else
   {
-    WriteCtrReg(ERXRDPTL, (( nextpckptr - 1 ) & 0x00ff ));  // free up ENC memory my adjustng the Rx Read ptr
+    WriteCtrReg(ERXRDPTL, (( nextpckptr - 1 ) & 0x00ff ));  
     WriteCtrReg(ERXRDPTH, ((( nextpckptr - 1 ) & 0xff00 ) >> 8 ));
   }
   // decrement packet counter
   SetBitField(ECON2, ECON2_PKTDEC);
  
-
-  return uip_len;
+  return pckLen;
 }
 
 /*------------------------Private Functions-----------------------------*/
@@ -556,10 +558,8 @@ static void BankSel(unsigned char bank)
   if (bank >3)
     return;
   
-  temp = ReadETHReg(ECON1);       // Read ECON1 register
-  temp &= ~ECON1_BSEL;            // mask off the BSEL bits
-  temp |= bank;                   // set BSEL bits
-  WriteCtrReg(ECON1, temp);       // write new values back to ENC28J60
+  ClrBitField( ECON1, ECON1_BSEL );
+  SetBitField( ECON1, bank );
 }
 /***********************************************************************/
 /** \brief ResetMac.
