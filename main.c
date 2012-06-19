@@ -9,10 +9,11 @@ int main( void )
 {
   // Stop watchdog timer to prevent time out reset
   WDTCTL = WDTPW + WDTHOLD;
-  P1DIR = 0x01;
-  P1OUT = 0x0;
+  __delay_cycles(1600000);
   IPstackInit();
-  IPstackHTMLPost(url, data, reply );
+  unsigned char target[] = {192,168,0,70};
+  SendPing(target);
+  //IPstackHTMLPost(url, data, reply );
 
   while(1) IPstackIdle();
 }
