@@ -4,7 +4,7 @@ Implements a basic webclient that will send messages to a server. Will be able t
 
 Webclient part now working. 
 
-.:Edit:. Webclient no longer works see older versions. Rewrite has broken client.
+.:Edit:. Webclient somewhat works. Note will often crash!
 
 See http://mostlyprog.wordpress.com/2011/12/01/msp430-enc28j60-ethernet/ for progress.
 
