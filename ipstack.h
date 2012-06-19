@@ -1,9 +1,12 @@
 #ifndef IPSTACK_H
 #define IPSTACK_H
 
-int IPstackInit( unsigned char const* MacAddress);
-int IPstackHTMLPost( char* url, char* data, char* reply);
+int IPstackInit();
+int IPstackHTMLPost( const char* url, const char* data, char* reply);
 int IPstackIdle();
+void SendPing( unsigned char* targetIP );
+
+#define MAXPACKETLEN 100
 
 #pragma pack(1)
 typedef struct
@@ -30,8 +33,12 @@ typedef struct
   unsigned char targetIP[4];
 }ARP;
 
+//ARP opCodes
 #define ARPREPLY  0x0002
 #define ARPREQUEST 0x0001
+//ARP hardware types
+#define ETHERNET 0x0001
+
 typedef struct
 {
   EtherNetII eth;
